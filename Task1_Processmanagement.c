@@ -104,3 +104,70 @@ void run_producer_consumer_demo() {
     sem_destroy(&empty_slots);
     sem_destroy(&full_slots);
 }
+
+/* ROUND-ROBIN SCHEDULER SIMULATION*/
+ 
+typedef struct {
+    int pid;
+    int burst_time;
+    int remaining_time;
+    int arrival_time;
+    int waiting_time;
+    int turnaround_time;
+    int completed;
+} Process;
+ 
+void run_round_robin_demo() {
+    printf("\n===== PART 3: ROUND-ROBIN SCHEDULER SIMULATION =====\n");
+ 
+    int quantum = 2;
+    Process processes[] = {
+        {1, 5, 5, 0, 0, 0, 0},
+        {2, 3, 3, 0, 0, 0, 0},
+        {3, 8, 8, 0, 0, 0, 0},
+        {4, 6, 6, 0, 0, 0, 0}
+    };
+    int n = sizeof(processes) / sizeof(processes[0]);
+    int time = 0, completed_count = 0;
+ 
+    printf("Quantum = %d\n", quantum);
+    printf("Gantt chart order:\n");
+ 
+    while (completed_count < n) {
+        int idle = 1;
+        for (int i = 0; i < n; i++) {
+            if (!processes[i].completed && processes[i].remaining_time > 0) {
+                idle = 0;
+                int slice = (processes[i].remaining_time < quantum)
+                                ? processes[i].remaining_time
+                                : quantum;
+ 
+                printf("  | P%d (runs %d) ", processes[i].pid, slice);
+ 
+                time += slice;
+                processes[i].remaining_time -= slice;
+ 
+                if (processes[i].remaining_time == 0) {
+                    processes[i].completed = 1;
+                    processes[i].turnaround_time = time - processes[i].arrival_time;
+                    processes[i].waiting_time =
+                        processes[i].turnaround_time - processes[i].burst_time;
+                    completed_count++;
+                }
+            }
+        }
+        if (idle) break;
+    }
+    printf("|\n\n");
+ 
+    float total_wait = 0, total_turnaround = 0;
+    printf("PID\tBurst\tWaiting\tTurnaround\n");
+    for (int i = 0; i < n; i++) {
+        printf("P%d\t%d\t%d\t%d\n", processes[i].pid, processes[i].burst_time,
+               processes[i].waiting_time, processes[i].turnaround_time);
+        total_wait += processes[i].waiting_time;
+        total_turnaround += processes[i].turnaround_time;
+    }
+    printf("\nAverage Waiting Time    : %.2f\n", total_wait / n);
+    printf("Average Turnaround Time : %.2f\n", total_turnaround / n);
+}
