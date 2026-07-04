@@ -47,3 +47,60 @@ int main() {
 
     return 0;
 }
+/*  PRODUCER-CONSUMER USING SEMAPHORES */
+
+#include <semaphore.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 5
+#define ITEMS_TO_PRODUCE 10
+
+int buffer[BUFFER_SIZE];
+int in = 0, out = 0;
+sem_t empty_slots, full_slots;
+pthread_mutex_t buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void *producer(void *arg) {
+    for (int i = 1; i <= ITEMS_TO_PRODUCE; i++) {
+        sem_wait(&empty_slots);
+        pthread_mutex_lock(&buffer_mutex);
+        buffer[in] = i;
+        printf("[Producer] produced item %d at slot %d\n", i, in);
+        in = (in + 1) % BUFFER_SIZE;
+        pthread_mutex_unlock(&buffer_mutex);
+        sem_post(&full_slots);
+        usleep(10000);
+    }
+    return NULL;
+}
+
+void *consumer(void *arg) {
+    for (int i = 1; i <= ITEMS_TO_PRODUCE; i++) {
+        sem_wait(&full_slots);
+        pthread_mutex_lock(&buffer_mutex);
+        int item = buffer[out];
+        printf("[Consumer] consumed item %d from slot %d\n", item, out);
+        out = (out + 1) % BUFFER_SIZE;
+        pthread_mutex_unlock(&buffer_mutex);
+        sem_post(&empty_slots);
+        usleep(15000);
+    }
+    return NULL;
+}
+
+/* Producer-Consumer demo */
+
+void run_producer_consumer_demo() {
+    printf("\n===== PART 2: PRODUCER-CONSUMER (SEMAPHORES) =====\n");
+    sem_init(&empty_slots, 0, BUFFER_SIZE);
+    sem_init(&full_slots, 0, 0);
+
+    pthread_t prod_thread, cons_thread;
+    pthread_create(&prod_thread, NULL, producer, NULL);
+    pthread_create(&cons_thread, NULL, consumer, NULL);
+    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
+
+    sem_destroy(&empty_slots);
+    sem_destroy(&full_slots);
+}
