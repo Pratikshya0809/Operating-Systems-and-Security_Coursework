@@ -90,6 +90,74 @@ SimResult run_fifo(int ref_string[], int ref_length, int num_frames, int verbose
             }
         }
     }
+    result.hit_ratio = (double)result.page_hits / ref_length;
+    result.miss_ratio = (double)result.page_faults / ref_length;
+    return result;
+}
+
+  /* PART 3: LRU PAGE REPLACEMENT */
+
+SimResult run_lru(int ref_string[], int ref_length, int num_frames, int verbose) {
+    int frames[num_frames];
+    int last_used[num_frames];   /* "time" each frame's page was last accessed */
+    for (int i = 0; i < num_frames; i++) {
+        frames[i] = -1;
+        last_used[i] = -1;
+    }
+
+    SimResult result = {0, 0, 0.0, 0.0};
+
+    if (verbose) printf("\n--- LRU Page Replacement Log (frames = %d) ---\n", num_frames);
+
+    for (int i = 0; i < ref_length; i++) {
+        int page = ref_string[i];
+        int found_index = -1;
+
+        for (int f = 0; f < num_frames; f++) {
+            if (frames[f] == page) { found_index = f; break; }
+        }
+
+        if (found_index != -1) {
+            result.page_hits++;
+            last_used[found_index] = i;   /* mark as most recently used */
+            if (verbose) {
+                printf("Access %-2d Page %-2d -> HIT   Frames: ", i + 1, page);
+                print_frames(frames, num_frames);
+                printf("\n");
+            }
+        } else {
+            result.page_faults++;
+
+            /* find an empty frame first */
+            int target = -1;
+            for (int f = 0; f < num_frames; f++) {
+                if (frames[f] == -1) { target = f; break; }
+            }
+
+            /* no empty frame -> find the least recently used one */
+            if (target == -1) {
+                int oldest_time = last_used[0];
+                target = 0;
+                for (int f = 1; f < num_frames; f++) {
+                    if (last_used[f] < oldest_time) {
+                        oldest_time = last_used[f];
+                        target = f;
+                    }
+                }
+            }
+
+            int evicted = frames[target];
+            frames[target] = page;
+            last_used[target] = i;
+
+            if (verbose) {
+                printf("Access %-2d Page %-2d -> FAULT (evicted %-2d) Frames: ",
+                       i + 1, page, evicted);
+                print_frames(frames, num_frames);
+                printf("\n");
+            }
+        }
+    }
 
     result.hit_ratio = (double)result.page_hits / ref_length;
     result.miss_ratio = (double)result.page_faults / ref_length;
