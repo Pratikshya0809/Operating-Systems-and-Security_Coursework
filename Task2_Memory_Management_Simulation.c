@@ -163,3 +163,58 @@ SimResult run_lru(int ref_string[], int ref_length, int num_frames, int verbose)
     result.miss_ratio = (double)result.page_faults / ref_length;
     return result;
 }
+
+/* FAULT TRACKING, HIT/MISS RATIOS, TEST CASES, COMPARISON */
+
+void print_result(const char *label, SimResult r) {
+    printf("%-6s | Faults: %-3d | Hits: %-3d | Hit Ratio: %.2f | Miss Ratio: %.2f\n",
+           label, r.page_faults, r.page_hits, r.hit_ratio, r.miss_ratio);
+}
+
+void run_test_case(const char *name, int ref_string[], int ref_length, int num_frames) {
+    printf("\n=================================================================\n");
+    printf("TEST CASE: %s  (reference length = %d, frames = %d)\n", name, ref_length, num_frames);
+    printf("Reference string: ");
+    for (int i = 0; i < ref_length; i++) printf("%d ", ref_string[i]);
+    printf("\n=================================================================\n");
+
+    SimResult fifo_result = run_fifo(ref_string, ref_length, num_frames, 1);
+    SimResult lru_result  = run_lru(ref_string, ref_length, num_frames, 1);
+
+    printf("\n--- Summary for %s ---\n", name);
+    print_result("FIFO", fifo_result);
+    print_result("LRU", lru_result);
+}
+
+void run_all_test_cases() {
+    printf("\n===== PART 4: TEST CASES AND ALGORITHM COMPARISON =====\n");
+
+    /* Test Case 1: classic textbook reference string */
+    int test1[] = {7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1};
+    run_test_case("Classic reference string", test1, 20, NUM_FRAMES);
+
+    /* Test Case 2: repeating pattern (favours LRU) */
+    int test2[] = {1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5};
+    run_test_case("Repeating locality pattern", test2, 12, NUM_FRAMES);
+
+    /* Test Case 3: Belady's anomaly demonstration for FIFO (more frames can increase faults) */
+    int test3[] = {1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5};
+    printf("\n--- Belady's Anomaly Check: same string, different frame counts (FIFO) ---\n");
+    SimResult fifo_3frames = run_fifo(test3, 12, 3, 0);
+    SimResult fifo_4frames = run_fifo(test3, 12, 4, 0);
+    printf("FIFO with 3 frames -> Faults: %d\n", fifo_3frames.page_faults);
+    printf("FIFO with 4 frames -> Faults: %d\n", fifo_4frames.page_faults);
+    printf("(If 4-frame faults >= 3-frame faults unexpectedly, that illustrates Belady's Anomaly.)\n");
+}
+
+/* MAIN*/
+
+int main() {
+    printf("# TASK 2: MEMORY MANAGEMENT SIMULATION         #\n");
+
+    demo_paging_system();
+    run_all_test_cases();
+
+    printf("\nAll simulations completed successfully.\n");
+    return 0;
+}
