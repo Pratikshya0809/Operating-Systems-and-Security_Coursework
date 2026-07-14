@@ -31,11 +31,11 @@ void *increment_safe(void *arg) {
 }
 
 void run_race_condition_demo() {
-    printf("\n===== PART 1: RACE CONDITION DEMO =====\n");
+    printf("\n RACE CONDITION DEMO \n");
     pthread_t threads[NUM_THREADS_RACE];
     long expected = (long)NUM_THREADS_RACE * INCREMENTS_PER_THREAD;
 
-    /* --- Unsynchronized version --- */
+    /*  Unsynchronized version  */
     for (int i = 0; i < NUM_THREADS_RACE; i++)
         pthread_create(&threads[i], NULL, increment_unsafe, NULL);
     for (int i = 0; i < NUM_THREADS_RACE; i++)
@@ -45,7 +45,7 @@ void run_race_condition_demo() {
     printf("Unsynchronized result: %ld  %s\n", shared_counter_unsafe,
            (shared_counter_unsafe != expected) ? "(RACE CONDITION - lost updates)" : "(got lucky this run)");
 
-    /* --- Synchronized version (mutex fix) --- */
+    /* Synchronized version (mutex fix) */
     for (int i = 0; i < NUM_THREADS_RACE; i++)
         pthread_create(&threads[i], NULL, increment_safe, NULL);
     for (int i = 0; i < NUM_THREADS_RACE; i++)
@@ -100,7 +100,7 @@ void *consumer(void *arg) {
 }
 
 void run_producer_consumer_demo() {
-    printf("\n===== PART 2: PRODUCER-CONSUMER (SEMAPHORES) =====\n");
+    printf("\n PRODUCER-CONSUMER (SEMAPHORES) \n");
     sem_init(&empty_slots, 0, BUFFER_SIZE);
     sem_init(&full_slots, 0, 0);
 
@@ -128,7 +128,7 @@ typedef struct {
 } Process;
 
 void run_round_robin_demo() {
-    printf("\n===== PART 3: ROUND-ROBIN SCHEDULER SIMULATION =====\n");
+    printf("\n ROUND-ROBIN SCHEDULER SIMULATION \n");
 
     int quantum = 2;
     Process processes[] = {
@@ -203,9 +203,7 @@ void *thread_A(void *arg) {
 
 void *thread_B(void *arg) {
     printf("[Thread B] trying to lock lock1 then lock2 (ordered - SAME order as Thread A)\n");
-    /* NOTE: prevention = thread B also locks lock1 first, lock2 second.
-       (An unsafe version would lock lock2 first, lock1 second, which
-       could deadlock against Thread A - left as a comment for the report.) */
+
     pthread_mutex_lock(&lock1);
     printf("[Thread B] acquired lock1\n");
     usleep(50000);
@@ -233,9 +231,7 @@ void run_deadlock_prevention_demo() {
 
 /* MAIN */
 int main() {
-    printf("###############################################\n");
-    printf("# TASK 1: PROCESS MANAGEMENT AND THREADING     #\n");
-    printf("###############################################\n");
+    printf("#  PROCESS MANAGEMENT AND THREADING     #\n");
 
     run_race_condition_demo();
     run_producer_consumer_demo();
