@@ -259,19 +259,56 @@ int delete_file(const char *filename) {
     return 0;
 }
 
-/* Temporary main so this compiles standalone for Commit 2 */
+/* PERMISSION MANAGEMENT */
+
+void view_permissions(const char *filename) {
+    FileMeta m;
+    if (get_file_meta(filename, &m) != 0) {
+        printf("No metadata record for '%s'.\n", filename);
+        return;
+    }
+    printf("File: %s  Owner: %s  Group: %s\n", m.filename, m.owner, m.group);
+    printf("Permissions: %c%c%c%c%c%c%c%c%c (%04o)\n",
+        (m.mode & 0400) ? 'r' : '-', (m.mode & 0200) ? 'w' : '-', (m.mode & 0100) ? 'x' : '-',
+        (m.mode & 0040) ? 'r' : '-', (m.mode & 0020) ? 'w' : '-', (m.mode & 0010) ? 'x' : '-',
+        (m.mode & 0004) ? 'r' : '-', (m.mode & 0002) ? 'w' : '-', (m.mode & 0001) ? 'x' : '-',
+        m.mode);
+}
+
+/* Only the file's owner may change its permissions. */
+int set_permissions(const char *filename, const char *mode_str) {
+    if (!require_login()) return -1;
+    FileMeta m;
+    if (get_file_meta(filename, &m) != 0) {
+        printf("No metadata record for '%s'.\n", filename);
+        return -1;
+    }
+    if (strcmp(current_user, m.owner) != 0) {
+        printf("Permission denied: only the owner can change permissions.\n");
+        return -1;
+    }
+    int mode = (int)strtol(mode_str, NULL, 8);
+    m.mode = mode;
+    save_file_meta(&m);
+
+    /* Mirror onto the real filesystem too, for defense in depth */
+    chmod(filename, mode);
+
+    printf("Permissions of '%s' set to %s.\n", filename, mode_str);
+    view_permissions(filename);
+    return 0;
+}
+
+/* Temporary main so this compiles standalone for Commit 3 */
 #ifndef SFMS_FULL_BUILD
 int main() {
-
     strncpy(current_user, "alice", MAX_UNAME);
     strncpy(current_group, "users", MAX_GROUP);
     logged_in = 1;
 
     create_file("notes.txt");
-    write_to_file("notes.txt", "This is confidential data", 0);
-    read_file_contents("notes.txt");
-    delete_file("notes.txt");
-    read_file_contents("notes.txt"); /* should fail: no metadata after delete */
+    view_permissions("notes.txt");
+    set_permissions("notes.txt", "640");
     return 0;
 }
 #endif
