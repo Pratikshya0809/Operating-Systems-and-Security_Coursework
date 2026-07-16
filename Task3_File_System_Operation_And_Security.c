@@ -388,22 +388,110 @@ int decrypt_file(const char *filename, const char *passphrase) {
     return 0;
 }
 
-/* Temporary main so this compiles standalone for Commit 4 */
-#ifndef SFMS_FULL_BUILD
+/* CLI INTEGRATION */
+
+void print_unauth_menu(void) {
+    printf("\n===== Secure File Management System =====\n");
+    printf("1. Register\n2. Login\n0. Exit\nChoice: ");
+}
+
+void print_auth_menu(void) {
+    printf("\n===== Secure File Management System =====\n");
+    printf("Logged in as: %s (group: %s)\n", current_user, current_group);
+    printf("1. Create File\n2. Read File\n3. Write File\n4. Delete File\n");
+    printf("5. List Files\n6. Change Permissions (chmod)\n");
+    printf("7. Encrypt File\n8. Decrypt File\n9. Logout\n0. Exit\nChoice: ");
+}
+
+void list_files(void) {
+    FILE *fp = fopen(FILE_DB, "r");
+    if (!fp) { printf("No files tracked yet.\n"); return; }
+    char line[512];
+    printf("---- Tracked Files ----\n");
+    while (fgets(line, sizeof(line), fp)) {
+        FileMeta m; int mode;
+        sscanf(line, "%255[^:]:%49[^:]:%31[^:]:%o:%d",
+               m.filename, m.owner, m.group, &mode, &m.encrypted);
+        printf("%-20s owner=%-10s group=%-8s mode=%04o %s\n",
+               m.filename, m.owner, m.group, mode, m.encrypted ? "[ENCRYPTED]" : "");
+    }
+    fclose(fp);
+}
+
 int main() {
-    strncpy(current_user, "alice", MAX_UNAME);
-    strncpy(current_group, "users", MAX_GROUP);
-    logged_in = 1;
+    int choice;
+    char a[MAX_UNAME], b[MAX_UNAME], path[MAX_PATH], buf[MAX_BUF];
 
-    create_file("secret.txt");
-    write_to_file("secret.txt", "This is confidential data", 0);
-
-    encrypt_file("secret.txt", "correcthorse");
-    read_file_contents("secret.txt");          /* should refuse: encrypted */
-
-    decrypt_file("secret.txt", "wrongpass");     /* should fail: bad passphrase */
-    decrypt_file("secret.txt", "correcthorse");  /* should succeed */
-    read_file_contents("secret.txt");            /* should show original text */
+    while (1) {
+        if (!logged_in) {
+            print_unauth_menu();
+            if (scanf("%d", &choice) != 1) break;
+            switch (choice) {
+                case 1:
+                    printf("Username: "); scanf("%s", a);
+                    printf("Password: "); scanf("%s", b);
+                    register_user(a, b);
+                    break;
+                case 2:
+                    printf("Username: "); scanf("%s", a);
+                    printf("Password: "); scanf("%s", b);
+                    login_user(a, b);
+                    break;
+                case 0:
+                    printf("Exiting.\n");
+                    return 0;
+                default:
+                    printf("Invalid choice.\n");
+            }
+        } else {
+            print_auth_menu();
+            if (scanf("%d", &choice) != 1) break;
+            switch (choice) {
+                case 1:
+                    printf("Filename: "); scanf("%s", path);
+                    create_file(path);
+                    break;
+                case 2:
+                    printf("Filename: "); scanf("%s", path);
+                    read_file_contents(path);
+                    break;
+                case 3:
+                    printf("Filename: "); scanf("%s", path);
+                    printf("Text: "); scanf(" %[^\n]", buf);
+                    write_to_file(path, buf, 1);
+                    break;
+                case 4:
+                    printf("Filename: "); scanf("%s", path);
+                    delete_file(path);
+                    break;
+                case 5:
+                    list_files();
+                    break;
+                case 6:
+                    printf("Filename: "); scanf("%s", path);
+                    printf("Mode (e.g. 640): "); scanf("%s", a);
+                    set_permissions(path, a);
+                    break;
+                case 7:
+                    printf("Filename: "); scanf("%s", path);
+                    printf("Passphrase: "); scanf("%s", a);
+                    encrypt_file(path, a);
+                    break;
+                case 8:
+                    printf("Filename: "); scanf("%s", path);
+                    printf("Passphrase: "); scanf("%s", a);
+                    decrypt_file(path, a);
+                    break;
+                case 9:
+                    logout_user();
+                    break;
+                case 0:
+                    printf("Exiting.\n");
+                    return 0;
+                default:
+                    printf("Invalid choice.\n");
+            }
+        }
+    }
     return 0;
 }
-#endif
