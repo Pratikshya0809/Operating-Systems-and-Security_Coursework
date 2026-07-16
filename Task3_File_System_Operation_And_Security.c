@@ -299,16 +299,111 @@ int set_permissions(const char *filename, const char *mode_str) {
     return 0;
 }
 
-/* Temporary main so this compiles standalone for Commit 3 */
+/* ENCRYPTION / DECRYPTION with passphrase verification*/
+
+void keystream_apply(unsigned char *buf, long len, const char *key) {
+    int keylen = strlen(key);
+    for (long i = 0; i < len; i++)
+        buf[i] ^= key[i % keylen];
+}
+
+long read_whole_file(const char *path, unsigned char **out_buf) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return -1;
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    *out_buf = malloc(size);
+    if (!*out_buf) { fclose(fp); return -1; }
+    fread(*out_buf, 1, size, fp);
+    fclose(fp);
+    return size;
+}
+
+int encrypt_file(const char *filename, const char *passphrase) {
+    if (!require_login()) return -1;
+    FileMeta m;
+    if (get_file_meta(filename, &m) != 0) { printf("No metadata record for '%s'.\n", filename); return -1; }
+    if (strcmp(current_user, m.owner) != 0) { printf("Permission denied: only the owner can encrypt.\n"); return -1; }
+    if (m.encrypted) { printf("File is already encrypted.\n"); return -1; }
+
+    unsigned char *plaintext;
+    long psize = read_whole_file(filename, &plaintext);
+    if (psize < 0) { printf("Could not read file.\n"); return -1; }
+
+    long total = 4 + psize;             /* marker + plaintext */
+    unsigned char *buf = malloc(total);
+    memcpy(buf, MARKER, 4);
+    memcpy(buf + 4, plaintext, psize);
+    free(plaintext);
+
+    keystream_apply(buf, total, passphrase);
+
+    FILE *out = fopen(filename, "wb");
+    if (!out) { perror("encrypt_file"); free(buf); return -1; }
+    fwrite(buf, 1, total, out);
+    fclose(out);
+    free(buf);
+
+    chmod(filename, S_IRUSR | S_IWUSR); /* owner-only once encrypted */
+    m.encrypted = 1;
+    save_file_meta(&m);
+
+    printf("File '%s' encrypted successfully.\n", filename);
+    return 0;
+}
+
+int decrypt_file(const char *filename, const char *passphrase) {
+    if (!require_login()) return -1;
+    FileMeta m;
+    if (get_file_meta(filename, &m) != 0) { printf("No metadata record for '%s'.\n", filename); return -1; }
+    if (strcmp(current_user, m.owner) != 0) { printf("Permission denied: only the owner can decrypt.\n"); return -1; }
+    if (!m.encrypted) { printf("File is not encrypted.\n"); return -1; }
+
+    unsigned char *buf;
+    long total = read_whole_file(filename, &buf);
+    if (total < 4) { printf("File is corrupted or too small.\n"); free(buf); return -1; }
+
+    keystream_apply(buf, total, passphrase);
+
+    /* Verify marker BEFORE touching the file on disk */
+    if (memcmp(buf, MARKER, 4) != 0) {
+        printf("Wrong passphrase — decryption aborted. File left unchanged.\n");
+        free(buf);
+        return -1;
+    }
+
+    FILE *out = fopen(filename, "wb");
+    if (!out) { perror("decrypt_file"); free(buf); return -1; }
+    fwrite(buf + 4, 1, total - 4, out);   /* strip marker, write plaintext */
+    fclose(out);
+    free(buf);
+
+    m.encrypted = 0;
+    m.mode = 0600;
+    save_file_meta(&m);
+    chmod(filename, m.mode);
+
+    printf("File '%s' decrypted successfully — passphrase verified.\n", filename);
+    return 0;
+}
+
+/* Temporary main so this compiles standalone for Commit 4 */
 #ifndef SFMS_FULL_BUILD
 int main() {
     strncpy(current_user, "alice", MAX_UNAME);
     strncpy(current_group, "users", MAX_GROUP);
     logged_in = 1;
 
-    create_file("notes.txt");
-    view_permissions("notes.txt");
-    set_permissions("notes.txt", "640");
+    create_file("secret.txt");
+    write_to_file("secret.txt", "This is confidential data", 0);
+
+    encrypt_file("secret.txt", "correcthorse");
+    read_file_contents("secret.txt");          /* should refuse: encrypted */
+
+    decrypt_file("secret.txt", "wrongpass");     /* should fail: bad passphrase */
+    decrypt_file("secret.txt", "correcthorse");  /* should succeed */
+    read_file_contents("secret.txt");            /* should show original text */
     return 0;
 }
 #endif
